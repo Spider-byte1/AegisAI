@@ -428,4 +428,8 @@ Lucknow, Uttar Pradesh, India
 
 **Current Sprint:** Authentication & Reconnaissance Module
 
+<<<<<<< HEAD
 **Target Release:** v1.0.0
+=======
+**Target Release:** v1.0.0
+>>>>>>> adb27d6 (Day 7: Added Nmap Scanner, Risk Engine, Recon Improvements)
