@@ -2,6 +2,7 @@ import nmap
 
 scanner = nmap.PortScanner()
 
+
 def run_scan(target):
 
     scanner.scan(
@@ -9,7 +10,7 @@ def run_scan(target):
         arguments="-Pn -sV -T4"
     )
 
-    output = []
+    hosts = []
 
     for host in scanner.all_hosts():
 
@@ -29,19 +30,18 @@ def run_scan(target):
                 host_info["ports"].append({
 
                     "port": port,
-
                     "protocol": protocol,
-
                     "state": service["state"],
-
                     "service": service["name"],
-
                     "product": service.get("product"),
-
                     "version": service.get("version")
 
                 })
 
-        output.append(host_info)
+        hosts.append(host_info)
 
-    return output
+
+    return {
+        "target": target,
+        "hosts": hosts
+    }

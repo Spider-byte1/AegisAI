@@ -11,3 +11,4 @@ class Scan(Base):
     scan_type = Column(String(50), default="Nmap")
     results = Column(Text)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+    

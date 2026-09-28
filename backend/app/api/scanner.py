@@ -1,4 +1,4 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from app.schemas.scanner import ScanRequest
 from app.services.scanner_service import start_scan
 
@@ -9,4 +9,12 @@ router = APIRouter(
 
 @router.post("/scan")
 def scan(data: ScanRequest):
-    return start_scan(data.target)
+    try:
+        result = start_scan(data.target)
+        return result
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=str(e)
+        )
+    
