@@ -5,6 +5,7 @@ from app.services.risk_engine import calculate_risk
 from app.scanners.whois_scanner import get_whois
 from app.scanners.dns_scanner import get_dns_records
 from app.scanners.ssl_scanner import get_ssl_info
+from app.services.cve_service import find_cves
 
 
 def start_scan(target: str):
@@ -25,16 +26,22 @@ def start_scan(target: str):
      ports.extend(host.get("ports", []))
 
     services = []
+    vulnerabilities = []
 
     for port in ports:
 
         banner = grab_banner(target, port)
+        service = identify_service(banner)
+        
+        cves = find_cves(service)
 
         services.append({
             "port": port,
             "banner": banner,
-            "service": identify_service(banner)
+            "service": service,
+            "cves": cves        
         })
+        vulnerabilities.extend(cves)
 
     risk = calculate_risk(ports, [])
 
@@ -45,3 +52,5 @@ def start_scan(target: str):
         "risk": risk,
         "status": "completed"
     }
+
+    

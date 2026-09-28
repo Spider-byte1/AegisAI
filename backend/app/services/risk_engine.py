@@ -1,24 +1,55 @@
-HIGH_RISK = [21,22,23,3389,5900]
+def calculate_risk(ports, vulnerabilities=None):
 
-MEDIUM_RISK = [25,53,110,143,445]
+    risk_score = 0
 
-LOW_RISK = [80,443]
-
-def calculate_risk(ports):
-
-    score = 0
-
+    # Port based risk
     for port in ports:
+        if isinstance(port, dict):
+            port_number = port.get("port")
 
-        p = port["port"]
+            if port_number in [21, 23, 80]:
+                risk_score += 10
 
-        if p in HIGH_RISK:
-            score += 10
+            elif port_number in [22, 443]:
+                risk_score += 5
 
-        elif p in MEDIUM_RISK:
-            score += 5
 
-        elif p in LOW_RISK:
-            score += 1
+    # Vulnerability based risk
+    if vulnerabilities:
+     for vuln in vulnerabilities:
 
-    return score
+        if isinstance(vuln, dict):
+            severity = vuln.get("severity", "").lower()
+
+        else:
+            severity = str(vuln).lower()
+
+
+        if "critical" in severity:
+            risk_score += 40
+
+        elif "high" in severity:
+            risk_score += 25
+
+        elif "medium" in severity:
+            risk_score += 15
+
+
+    # Final rating
+    if risk_score >= 70:
+        level = "CRITICAL"
+
+    elif risk_score >= 40:
+        level = "HIGH"
+
+    elif risk_score >= 20:
+        level = "MEDIUM"
+
+    else:
+        level = "LOW"
+
+
+    return {
+        "score": risk_score,
+        "level": level
+    }
