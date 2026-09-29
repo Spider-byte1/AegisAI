@@ -6,6 +6,7 @@ from app.scanners.whois_scanner import get_whois
 from app.scanners.dns_scanner import get_dns_records
 from app.scanners.ssl_scanner import get_ssl_info
 from app.services.cve_service import find_cves
+from app.services.recommendation_engine import generate_recommendation
 
 
 def start_scan(target: str):
@@ -34,12 +35,17 @@ def start_scan(target: str):
         service = identify_service(banner)
         
         cves = find_cves(service)
+        recommendations = []
+
+        for cve in cves:
+         recommendations.append(generate_recommendation(cve))
 
         services.append({
             "port": port,
             "banner": banner,
             "service": service,
-            "cves": cves        
+            "cves": cves,
+            "recommendations": recommendations
         })
         vulnerabilities.extend(cves)
 
