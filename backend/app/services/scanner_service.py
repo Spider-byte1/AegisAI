@@ -7,6 +7,8 @@ from app.scanners.dns_scanner import get_dns_records
 from app.scanners.ssl_scanner import get_ssl_info
 from app.services.cve_service import find_cves
 from app.services.recommendation_engine import generate_recommendation
+from app.services.report_service import generate_report
+from app.services.pdf_service import generate_pdf
 
 
 def start_scan(target: str):
@@ -49,14 +51,38 @@ def start_scan(target: str):
         })
         vulnerabilities.extend(cves)
 
-    risk = calculate_risk(ports, [])
+    risk = calculate_risk(ports, vulnerabilities)
+    
+    report = generate_report({
+    "target": target,
+    "status": "completed",
+    "risk": risk,
+    "whois": whois_info,
+    "dns": dns_info,
+    "ssl": ssl_info,
+    "ports": ports,
+    "services": services,
+    "vulnerabilities": vulnerabilities
+    })
+    pdf_file = generate_pdf(report)
+
+    
 
     return {
+    "scan": {
         "target": target,
+        "status": "completed",
+        "risk": risk,
+        "whois": whois_info,
+        "dns": dns_info,
+        "ssl": ssl_info,
         "ports": ports,
         "services": services,
-        "risk": risk,
-        "status": "completed"
-    }
+        "vulnerabilities": vulnerabilities
+    },
+
+    "report": report,
+    "pdf": pdf_file
+}
 
     
