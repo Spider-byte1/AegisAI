@@ -9,9 +9,11 @@ from app.services.cve_service import find_cves
 from app.services.recommendation_engine import generate_recommendation
 from app.services.report_service import generate_report
 from app.services.pdf_service import generate_pdf
+from app.services.scan_service import save_scan
+from sqlalchemy.orm import Session
 
 
-def start_scan(target: str):
+def start_scan(db: Session, target: str):
 
     whois_info = get_whois(target)
 
@@ -52,6 +54,13 @@ def start_scan(target: str):
         vulnerabilities.extend(cves)
 
     risk = calculate_risk(ports, vulnerabilities)
+    save_scan(
+    db,
+    target,
+    risk,
+    "completed"
+)
+    
     
     report = generate_report({
     "target": target,

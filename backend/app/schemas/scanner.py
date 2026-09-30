@@ -6,6 +6,10 @@ class ScanRequest(BaseModel):
 
 
 class ScanResponse(BaseModel):
+    id: int
     target: str
-    ports: list[int]
     status: str
+    risk: str
+
+    class Config:
+        from_attributes = True
