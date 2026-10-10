@@ -1,0 +1,17 @@
+# Used by the backend image (build context = repo root). Keep the context small and secret-free.
+.git
+.github
+frontend
+docs
+**/__pycache__
+**/*.pyc
+.venv*
+venv
+**/.env
+**/.env.*
+!**/.env.example
+**/*.db
+**/logs
+**/.pytest_cache
+backend/app/reports/*.pdf
+backend/tests

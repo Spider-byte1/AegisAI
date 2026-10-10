@@ -1,0 +1,71 @@
+# docker compose up --build
+# Frontend: http://localhost:3000    API docs: http://localhost:8000/docs
+# Needs a .env file next to this one (see .env.example): SECRET_KEY is required.
+x-backend-env: &backend-env
+  DATABASE_URL: postgresql+psycopg://aegis:${POSTGRES_PASSWORD:-aegis_dev_pw}@postgres:5432/aegisai_db
+  CELERY_BROKER_URL: redis://redis:6379/0
+  SECRET_KEY: ${SECRET_KEY:?Set SECRET_KEY in a .env file next to docker-compose.yml (32+ random characters)}
+  CORS_ORIGINS: http://localhost:3000,http://127.0.0.1:3000
+  # In a container, "private" addresses include your other Docker services and host network.
+  ALLOW_PRIVATE_TARGETS: ${ALLOW_PRIVATE_TARGETS:-false}
+  ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+  LLM_MODEL: ${LLM_MODEL:-claude-haiku-4-5-20251001}
+  ASSISTANT_SCOPE: ${ASSISTANT_SCOPE:-cybersecurity}
+
+x-backend-build: &backend-build
+  context: .
+  dockerfile: backend/Dockerfile
+
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: aegis
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-aegis_dev_pw}
+      POSTGRES_DB: aegisai_db
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U aegis -d aegisai_db"]
+      interval: 5s
+      retries: 10
+
+  redis:
+    image: redis:7
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      retries: 10
+
+  backend:
+    build: *backend-build
+    environment: *backend-env
+    ports: ["8000:8000"]
+    volumes:
+      - reports:/app/app/reports
+    depends_on:
+      postgres: {condition: service_healthy}
+      redis: {condition: service_healthy}
+
+  worker:
+    build: *backend-build
+    command: celery -A app.worker.celery_app worker --loglevel=info --concurrency=2
+    environment: *backend-env
+    volumes:
+      - reports:/app/app/reports
+    depends_on:
+      postgres: {condition: service_healthy}
+      redis: {condition: service_healthy}
+      backend: {condition: service_healthy}
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        NEXT_PUBLIC_API_URL: http://localhost:8000
+    ports: ["3000:3000"]
+    depends_on: [backend]
+
+volumes:
+  pgdata:
+  reports:
