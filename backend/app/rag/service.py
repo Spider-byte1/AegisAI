@@ -7,6 +7,7 @@ from app.core.logger import logger
 from app.rag.llm import LLMUnavailable, get_llm_client
 from app.rag.prompt import MAX_HISTORY_TURNS, build_messages, build_system_prompt
 from app.rag.retriever import Hit, get_retriever, tokenize
+from app.rag.scan_context import ScanContext
 
 NO_CONTEXT_ANSWER = (
     "I couldn't find anything about that in my cybersecurity knowledge base, and AI answers are not "
@@ -74,8 +75,11 @@ def _find_hits(question: str, history: list[dict]) -> list[Hit]:
     )
 
 
-def _without_ai(hits: list[Hit], notice: str | None = None) -> Answer:
-    """What the user gets when no model is available: matching passages, or a polite 'nothing found'."""
+def _without_ai(hits: list[Hit], notice: str | None = None, scan: ScanContext | None = None) -> Answer:
+    """What the user gets when no model is available: the analyst brief for a scan, matching
+    passages, or a polite 'nothing found'."""
+    if scan is not None:
+        return Answer(scan.markdown, "analyst", [], notice=notice or "AI answers are not configured, so the AegisAI analyst report for this scan is shown instead.")
     if not hits:
         return Answer(UNAVAILABLE_ANSWER if notice else NO_CONTEXT_ANSWER, "no_context")
     passages = _passages_answer(hits)
@@ -90,25 +94,26 @@ def _without_ai(hits: list[Hit], notice: str | None = None) -> Answer:
 _UNAVAILABLE_NOTICE = "The AI service is temporarily unavailable, so knowledge-base passages are shown instead."
 
 
-def answer_question(question: str, history: list[dict]) -> Answer:
+def answer_question(question: str, history: list[dict], scan: ScanContext | None = None) -> Answer:
     """One-shot (non-streaming) answer."""
     history = history[-MAX_HISTORY_TURNS:]
     hits = _find_hits(question, history)
 
     llm = get_llm_client()
     if llm is None:
-        return _without_ai(hits)
+        return _without_ai(hits, scan=scan)
 
+    messages = build_messages(question, history, hits, scan.llm_text if scan else None)
     try:
-        text = llm.complete(build_system_prompt(), build_messages(question, history, hits), settings.LLM_MAX_TOKENS)
+        text = llm.complete(build_system_prompt(analyst=scan is not None), messages, settings.LLM_MAX_TOKENS)
     except LLMUnavailable as exc:
         logger.warning(f"Falling back to a no-AI answer ({exc})")
-        return _without_ai(hits, notice=_UNAVAILABLE_NOTICE)
+        return _without_ai(hits, notice=_UNAVAILABLE_NOTICE, scan=scan)
 
     return Answer(text, "llm", _sources(hits, text))
 
 
-def stream_answer(question: str, history: list[dict]) -> Iterator[dict]:
+def stream_answer(question: str, history: list[dict], scan: ScanContext | None = None) -> Iterator[dict]:
     """Events for a streaming answer: {"type": "delta", "text"} ... then {"type": "done", ...}
     or {"type": "error", "message"} if the model fails part-way through."""
     history = history[-MAX_HISTORY_TURNS:]
@@ -119,14 +124,15 @@ def stream_answer(question: str, history: list[dict]) -> Iterator[dict]:
 
     llm = get_llm_client()
     if llm is None:
-        fallback = _without_ai(hits)
+        fallback = _without_ai(hits, scan=scan)
         yield {"type": "delta", "text": fallback.answer}
         yield done(fallback)
         return
 
     parts: list[str] = []
     try:
-        for piece in llm.stream(build_system_prompt(), build_messages(question, history, hits), settings.LLM_MAX_TOKENS):
+        messages = build_messages(question, history, hits, scan.llm_text if scan else None)
+        for piece in llm.stream(build_system_prompt(analyst=scan is not None), messages, settings.LLM_MAX_TOKENS):
             parts.append(piece)
             yield {"type": "delta", "text": piece}
     except LLMUnavailable as exc:
@@ -135,7 +141,7 @@ def stream_answer(question: str, history: list[dict]) -> Iterator[dict]:
             yield {"type": "error", "message": "The response was interrupted."}
             return
         logger.warning(f"Stream failed before the first token ({exc})")
-        fallback = _without_ai(hits, notice=_UNAVAILABLE_NOTICE)
+        fallback = _without_ai(hits, notice=_UNAVAILABLE_NOTICE, scan=scan)
         yield {"type": "delta", "text": fallback.answer}
         yield done(fallback)
         return

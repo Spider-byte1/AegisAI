@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "AegisAI",
-  description: "AI-powered vulnerability assessment platform",
+  title: "AegisAI | SOC Command Center",
+  description: "AI-powered vulnerability assessment and security operations platform",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

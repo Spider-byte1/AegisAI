@@ -35,7 +35,7 @@ def generate_recommendation(vulnerability):
 # Advice for services that are risky simply by being reachable. Priority = how urgently to act.
 PORT_ADVICE = {
     21: ("High", "FTP sends files and passwords in clear text. Replace it with SFTP or FTPS, or restrict access to trusted networks."),
-    22: ("Low", "Use key-based SSH login, disable direct root login and restrict access by IP address or VPN."),
+    22: ("Low", "Use key-based SSH login or multi-factor authentication, disable direct root login and restrict access by IP address or VPN."),
     23: ("Critical", "Telnet is unencrypted. Disable it and use SSH instead."),
     80: ("Medium", "Redirect all HTTP traffic to HTTPS and enable HSTS."),
     443: ("Low", "Keep TLS modern (TLS 1.2 or newer), renew certificates before they expire and disable weak ciphers."),

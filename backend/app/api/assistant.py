@@ -13,7 +13,10 @@ from app.core.logger import logger
 from app.database.database import SessionLocal, get_db
 from app.models.chat import ChatLog
 from app.models.user import User
+from app.models.scan import Scan
+from app.rag.scan_context import ScanContext, build_scan_context
 from app.rag.service import answer_question, stream_answer
+from app.services.analysis_service import analysis_for_scan
 from app.schemas.assistant import AskRequest, AskResponse, ChatLogOut
 
 router = APIRouter(prefix="/assistant", tags=["Assistant"])
@@ -27,6 +30,16 @@ def _enforce_rate_limit(db: Session, user: User) -> None:
         raise HTTPException(status_code=429, detail="Question limit reached for this hour; please try again later")
 
 
+def _scan_context(db: Session, user: User, scan_id: int | None) -> ScanContext | None:
+    """Context for a scan the user owns and that has finished; 404 otherwise (never leaks other users' scans)."""
+    if scan_id is None:
+        return None
+    scan = db.query(Scan).filter(Scan.id == scan_id, Scan.user_id == user.id).first()
+    if not scan or scan.status != "completed" or not scan.result:
+        raise HTTPException(status_code=404, detail="Scan not found or not completed yet")
+    return build_scan_context(analysis_for_scan(db, scan))
+
+
 @router.post("/ask", response_model=AskResponse)
 def ask(
     data: AskRequest,
@@ -34,7 +47,8 @@ def ask(
     user: User = Depends(get_current_user),
 ):
     _enforce_rate_limit(db, user)
-    result = answer_question(data.question.strip(), [h.model_dump() for h in data.history])
+    scan = _scan_context(db, user, data.scan_id)
+    result = answer_question(data.question.strip(), [h.model_dump() for h in data.history], scan)
 
     db.add(
         ChatLog(
@@ -66,7 +80,7 @@ def _save_chat(user_id: int, question: str, answer: str, mode: str, sources: lis
 _DONE = object()
 
 
-async def _stream_events(user_id: int, question: str, history: list[dict]):
+async def _stream_events(user_id: int, question: str, history: list[dict], scan: ScanContext | None = None):
     """NDJSON lines for one streamed answer.
 
     The model call is a blocking iterator, so each step runs in a worker thread.
@@ -74,7 +88,7 @@ async def _stream_events(user_id: int, question: str, history: list[dict]):
     model, so it stops generating and billing) and saves the conversation. It runs
     when the answer finishes AND when the client disconnects.
     """
-    iterator = stream_answer(question, history)
+    iterator = stream_answer(question, history, scan)
     pieces: list[str] = []
     final: dict | None = None
     try:
@@ -127,9 +141,10 @@ def ask_stream(
 ):
     """Streams the answer as newline-delimited JSON events (delta ... done | error)."""
     _enforce_rate_limit(db, user)  # fails with 429 before any streaming starts
+    scan = _scan_context(db, user, data.scan_id)  # 404 before any streaming starts
 
     return ClosingStreamingResponse(
-        _stream_events(user.id, data.question.strip(), [h.model_dump() for h in data.history]),
+        _stream_events(user.id, data.question.strip(), [h.model_dump() for h in data.history], scan),
         media_type="application/x-ndjson",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},  # keep proxies from buffering
     )

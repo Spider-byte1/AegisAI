@@ -23,9 +23,10 @@ Final-year Computer Science & Engineering project by **Sudhanshu Chauhan**.
 | Recommendations | Fix advice for each matched CVE and for risky open services (Telnet, FTP, RDP, SMB, exposed databases, ...), sorted by urgency |
 | Reports | 8-section PDF summary report: executive summary in plain language, score breakdown, open ports and services, vulnerabilities, DNS / WHOIS / TLS details, prioritized recommendations, conclusion, scope and limitations. Download it from the **Download PDF report** button in the scan result or the **PDF** button in Recent Scans (owner only). It is rebuilt from the saved results on every download. |
 | Background scans | Celery + Redis worker with live stage and percentage progress |
-| Dashboard | Total scans, risk counts, scan history with delete |
-| **Security Assistant** | Floating chat popup on the dashboard. Open-ended, conversational answers that stream in as they are written, with Markdown formatting (lists, tables, code blocks), a Stop button and follow-up memory. Relevant notes from a 17-document knowledge base are attached and cited as sources. Needs an Anthropic API key for chat; without one it shows knowledge-base passages. |
-| Tests | 118 backend tests, fully offline; CI on every push |
+| SOC command center | Dark glass dashboard: KPI strip, live **agent pipeline** (the five real scan stages: Recon, Nmap, CVE, Risk Engine, Report), typing **SOC terminal** with optional sound, **analyst report**, **security health** gauge (grade and trend vs the previous scan), **executive summary**, **alerts** with toasts and sound, interactive **attack surface map**, scan history |
+| Global threat map | Optional world map with attack arcs. **Simulated data only** and labelled as such; off by default |
+| **Security Copilot** | Floating chat popup on the dashboard. Open-ended, conversational answers that stream in as they are written, with Markdown formatting (lists, tables, code blocks), a Stop button and follow-up memory. Relevant notes from a 17-document knowledge base are attached and cited as sources. Needs an Anthropic API key for chat; without one it shows knowledge-base passages. |
+| Tests | 172 backend tests and 111 frontend tests, fully offline; CI on every push |
 
 The scanner itself is rule-based. The AI feature is the Security Assistant.
 
@@ -130,7 +131,7 @@ npm install
 npm run dev
 ```
 
-Open http://localhost:3000, register, tick the authorization box and scan `scanme.nmap.org` (Nmap's official test host). Click the **Security Assistant** bubble in the bottom-right corner of the dashboard to open the chat popup.
+Open http://localhost:3000, register, tick the authorization box and scan `scanme.nmap.org` (Nmap's official test host). Click the **Security Copilot** bubble in the bottom-right corner. With a scan loaded it can analyze it, explain a finding or tell you how to fix it.
 
 ## Docker (everything at once)
 
@@ -173,6 +174,7 @@ All routes except register, login and health need `Authorization: Bearer <token>
 |---|---|
 | `POST /auth/register`, `POST /auth/login`, `GET /auth/me` | Accounts (login is an OAuth2 form: email in the `username` field) |
 | `POST /scanner/start` | Queue a scan: `{"target": "...", "authorized": true}` |
+| `GET /scanner/analysis/latest` · `/analysis/{id}` | SOC analysis: analyst report, health score and grade, executive summary, alerts, attack-surface graph |
 | `GET /scanner/status/{id}` · `/result/{id}` · `/report/{id}` | Progress, full findings, PDF summary report (404 until the scan is completed) |
 | `GET /history/` · `DELETE /history/{id}` | Your scans |
 | `GET /dashboard/stats` · `GET /profile/` | Counts and account info |
@@ -181,7 +183,7 @@ All routes except register, login and health need `Authorization: Bearer <token>
 | `POST /assistant/ask` · `GET` / `DELETE /assistant/history` | Same answer in one piece; saved conversation |
 | `GET /health` | Liveness check |
 
-## Security Assistant
+## Security Copilot
 
 A ChatGPT-style chat in a popup window (bottom-right corner of the dashboard).
 
@@ -193,6 +195,9 @@ A ChatGPT-style chat in a popup window (bottom-right corner of the dashboard).
 - **Needs an API key:** chat requires `ANTHROPIC_API_KEY` (API usage is billed separately from any claude.ai subscription). Without one, the popup falls back to showing matching knowledge-base passages, and says so. If the AI service fails, users get the passages instead of an error.
 - **Not ChatGPT:** it has no web access or real-time data, so it can be wrong or out of date on current events and specific product versions.
 - **Add knowledge:** drop a markdown file into `backend/app/knowledge/` (`# Title`, then `## Section` blocks) and add a labelled question in `backend/tests/test_rag_retrieval.py`.
+
+- **Scan-aware:** a question can carry one of your completed scans (`scan_id`). The Copilot then answers like a SOC analyst. Text that came from the scanned server (banners, versions) is reduced to harmless characters before the model sees it, and model output never loads remote images. Without an API key you get the deterministic analyst brief instead.
+- **Dashboard honesty:** agent states come from the scan's real progress, health is the inverse of the risk score, and alerts are the scan's medium-or-higher findings. The only simulated panel is the threat map.
 
 ## Risk model
 
@@ -214,7 +219,8 @@ The score starts at 0 and is capped at 100. Only open ports count.
 ## Testing
 
 ```bash
-cd backend && python -m pytest        # 118 tests, offline (in-memory SQLite, no Redis/Nmap/API key)
+cd backend && python -m pytest        # 172 tests, offline (in-memory SQLite, no Redis/Nmap/API key)
+cd frontend && npm test                # 111 tests
 cd frontend && npm run build          # also type-checks
 ```
 

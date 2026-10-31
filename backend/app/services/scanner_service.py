@@ -28,17 +28,20 @@ def start_scan(target: str, scan_id: int, on_progress: Optional[ProgressCallback
     scan_target = assert_scannable(target)
     logger.info(f"Starting scan {scan_id}: {scan_target.host} ({scan_target.ip})")
 
-    progress(20, "Scanning ports and services")
+    # Stage boundaries (15/35/65/80/90) are what services/agents.py turns into agent states.
+    progress(15, "Reconnaissance: WHOIS, DNS and TLS")
+    assets = collect_asset_info(scan_target.host, scan_target.kind)
+
+    progress(35, "Scanning ports and services")
     # Scan the address we validated, not the name, so a DNS change between the
     # check and the scan can't redirect Nmap to an internal host.
     ports = execute_scan(scan_target.ip)
     logger.info(f"Scan {scan_id}: {len(ports)} open ports")
 
-    progress(50, "Collecting WHOIS, DNS and SSL data")
-    assets = collect_asset_info(scan_target.host, scan_target.kind)
-
-    progress(70, "Analysing services and vulnerabilities")
+    progress(65, "Matching service versions to known CVEs")
     services, vulnerabilities = analyze_services(scan_target.ip, ports)
+
+    progress(80, "Calculating risk score")
     risk = calculate_risk(ports, vulnerabilities)
     logger.info(f"Scan {scan_id}: risk {risk}, {len(vulnerabilities)} vulnerabilities")
 

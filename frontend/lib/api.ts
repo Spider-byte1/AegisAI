@@ -58,3 +58,21 @@ export async function downloadReport(scanId: number, target: string): Promise<vo
   link.remove();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
+
+export class ApiError extends Error {
+  status: number;
+
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+  }
+}
+
+/** GET/POST JSON and return the typed body; throws ApiError with a readable message on failure. */
+export async function apiJson<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const res = await apiFetch(path, init);
+  const data: unknown = await res.json().catch(() => null);
+  if (!res.ok) throw new ApiError(errorMessage(data, "Request failed"), res.status);
+  return data as T;
+}

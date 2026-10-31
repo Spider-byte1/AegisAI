@@ -19,7 +19,8 @@ _STOPWORDS = frozenset(
     into is it its me my of on or our should so some than that the their them then there these they this to
     us was we were what when where which who whom why will with would you your about also any more most
     other such very explain describe tell give show please help know using use used uses work works way ways
-    example examples difference differences between mean means meaning like make made get gets""".split()
+    example examples difference differences between mean means meaning like make made get gets
+    against during without within need needs want wants best good really just every each many much""".split()
 )
 
 # Passages about AegisAI itself only compete at full strength when the question

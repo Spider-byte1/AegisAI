@@ -13,6 +13,8 @@ class AskRequest(BaseModel):
     question: str = Field(min_length=3, max_length=1000)
     # Earlier turns of this conversation, oldest first (the server keeps the last few).
     history: list[HistoryItem] = Field(default_factory=list, max_length=20)
+    # Attach one of your completed scans so the Copilot answers about it like an analyst.
+    scan_id: int | None = Field(default=None, ge=1)
 
 
 class SourceOut(BaseModel):
@@ -25,7 +27,7 @@ class SourceOut(BaseModel):
 
 class AskResponse(BaseModel):
     answer: str
-    mode: Literal["llm", "retrieval_only", "no_context"]
+    mode: Literal["llm", "retrieval_only", "no_context", "analyst"]
     sources: list[SourceOut]
     notice: str | None = None
 

@@ -12,7 +12,7 @@ files: backend/.env, databases, logs, PDFs, node_modules and .venv are untouched
     Remove-Item -ErrorAction SilentlyContinue backend\text.py, backend\app\api\status.py, backend\app\models\scan_history.py, backend\app\services\background_worker.py, backend\app\services\dashboard_service.py, backend\app\services\history_service.py, backend\app\services\risk_service.py, backend\app\services\scan_service.py
 
 ## 3. Check the files landed (every line must say True)
-    "frontend\lib\api.ts","frontend\app\login\page.tsx","frontend\components\AssistantWidget.tsx","backend\app\rag\retriever.py","backend\scripts\reset_db.py","requirements-dev.txt","backend\Dockerfile" | % { "{0,-40} {1}" -f $_, (Test-Path $_) }
+    "frontend\lib\api.ts","frontend\app\login\page.tsx","frontend\components\soc\CommandCenter.tsx","backend\app\rag\retriever.py","backend\scripts\reset_db.py","requirements-dev.txt","backend\Dockerfile" | % { "{0,-40} {1}" -f $_, (Test-Path $_) }
 
 ## 4. Configure, install, reset the database
 In backend\.env set a real SECRET_KEY (32+ random characters, not a placeholder):
@@ -21,7 +21,7 @@ Then, with your virtualenv active:
     pip install -r requirements-dev.txt
     cd backend
     python -m scripts.reset_db --yes        # tables changed shape; this deletes dev data
-    python -m pytest                        # 118 tests should pass
+    python -m pytest                        # 172 tests should pass
 
 ## 5. Run
     uvicorn app.main:app --reload                                  (backend/)

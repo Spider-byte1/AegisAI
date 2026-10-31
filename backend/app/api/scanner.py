@@ -10,6 +10,8 @@ from app.database.database import get_db
 from app.models.scan import ACTIVE_STATUSES, Scan
 from app.models.user import User
 from app.scanners.validator import assert_scannable
+from app.services.agents import agent_states
+from app.services.analysis_service import analysis_for_scan
 from app.schemas.scanner import ScanRequest
 from app.services.pdf_service import generate_pdf
 from app.services.report_service import generate_report
@@ -76,6 +78,7 @@ def scan_status(scan_id: int, db: Session = Depends(get_db), user: User = Depend
         "progress": scan.progress,
         "message": scan.message,
         "risk": scan.risk,
+        "agents": agent_states(scan.status, scan.progress),
     }
 
 
@@ -116,3 +119,26 @@ def download_report(scan_id: int, db: Session = Depends(get_db), user: User = De
         scan.report_path = path
         db.commit()
     return FileResponse(path, media_type="application/pdf", filename=f"aegisai_scan_{scan.id}.pdf")
+
+
+@router.get("/analysis/latest")
+def latest_analysis(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """Analysis of your most recent completed scan (404 if you have none yet)."""
+    scan = (
+        db.query(Scan)
+        .filter(Scan.user_id == user.id, Scan.status == "completed", Scan.risk_score.isnot(None))
+        .order_by(Scan.id.desc())
+        .first()
+    )
+    if not scan:
+        raise HTTPException(status_code=404, detail="No completed scans yet")
+    return analysis_for_scan(db, scan)
+
+
+@router.get("/analysis/{scan_id}")
+def get_analysis(scan_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """SOC analysis (analyst report, health score, executive view, alerts, attack surface)."""
+    scan = _get_owned_scan(db, scan_id, user)
+    if scan.status != "completed" or not scan.result:
+        raise HTTPException(status_code=404, detail="The analysis is not ready yet")
+    return analysis_for_scan(db, scan)

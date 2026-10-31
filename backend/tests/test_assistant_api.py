@@ -367,7 +367,7 @@ def test_closing_the_event_stream_early_closes_the_model_and_saves_the_partial_a
 
     closed = []
 
-    def fake_stream(question, history):
+    def fake_stream(question, history, scan=None):
         try:
             for word in ["one ", "two ", "three ", "four "]:
                 yield {"type": "delta", "text": word}
@@ -456,7 +456,7 @@ def test_response_closes_its_generator_when_the_client_connection_drops():
 def test_unexpected_error_mid_stream_is_hidden_from_the_user_but_partial_text_is_kept(client, auth, monkeypatch):
     import app.api.assistant as assistant_api
 
-    def broken(question, history):
+    def broken(question, history, scan=None):
         yield {"type": "delta", "text": "Starting an answer "}
         raise RuntimeError("secret internal detail: db password")
 

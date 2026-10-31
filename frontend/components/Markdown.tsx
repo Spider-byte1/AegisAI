@@ -16,6 +16,8 @@ const components: Components = {
   h4: ({ children }) => <h4 className="mb-1 mt-2 font-semibold">{children}</h4>,
   strong: ({ children }) => <strong className="font-semibold text-white">{children}</strong>,
   em: ({ children }) => <em className="italic">{children}</em>,
+  // Remote images are never loaded: model output can be steered by scanned (hostile) text, and an image URL is a tracking beacon.
+  img: ({ alt }) => <span className="text-xs text-slate-500">[image removed{alt ? `: ${alt}` : ""}]</span>,
   hr: () => <hr className="my-3 border-slate-700" />,
   blockquote: ({ children }) => (
     <blockquote className="mb-2 border-l-4 border-cyan-700 pl-3 text-gray-300">{children}</blockquote>

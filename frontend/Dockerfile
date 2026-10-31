@@ -13,6 +13,8 @@ ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 ENV NEXT_TELEMETRY_DISABLED=1
 # Note: app/layout.tsx uses next/font/google, so this step needs internet access.
 RUN npm run build
+# Drop test tooling and other dev packages: the runtime image only needs what `next start` loads.
+RUN npm prune --omit=dev
 
 FROM node:22-slim
 WORKDIR /app

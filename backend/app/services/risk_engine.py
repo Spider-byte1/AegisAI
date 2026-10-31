@@ -4,14 +4,14 @@ SEVERITY_POINTS = {"critical": 40, "high": 25, "medium": 15, "low": 5}
 LEVEL_THRESHOLDS = (("CRITICAL", 70), ("HIGH", 40), ("MEDIUM", 20))
 
 
-_PORT_NAMES = {
+PORT_NAMES = {
     21: "FTP", 22: "SSH", 23: "Telnet", 25: "SMTP", 53: "DNS", 80: "HTTP", 110: "POP3", 143: "IMAP",
     443: "HTTPS", 445: "SMB", 3306: "MySQL", 3389: "RDP", 5432: "PostgreSQL", 6379: "Redis", 27017: "MongoDB",
 }
 
 
 def port_label(port: int) -> str:
-    name = _PORT_NAMES.get(port)
+    name = PORT_NAMES.get(port)
     return f"{name} ({port})" if name else str(port)
 
 
