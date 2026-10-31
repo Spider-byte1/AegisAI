@@ -37,3 +37,24 @@ export function errorMessage(data: unknown, fallback = "Something went wrong"): 
   if (d.error?.message) return d.error.message;
   return fallback;
 }
+
+/**
+ * Download a finished scan's PDF report. The endpoint needs the login token, so a plain
+ * <a href> link cannot be used: fetch the file with the token, then save it from memory.
+ * Throws an Error with a readable message when the report is not available.
+ */
+export async function downloadReport(scanId: number, target: string): Promise<void> {
+  const res = await apiFetch(`/scanner/report/${scanId}`);
+  if (!res.ok) {
+    const data = await res.json().catch(() => null);
+    throw new Error(errorMessage(data, "The report is not available"));
+  }
+  const url = URL.createObjectURL(await res.blob());
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `aegisai-report-${target.replace(/[^a-zA-Z0-9.-]/g, "_")}-${scanId}.pdf`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}

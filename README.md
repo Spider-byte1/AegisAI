@@ -20,12 +20,12 @@ Final-year Computer Science & Engineering project by **Sudhanshu Chauhan**.
 | Asset info | WHOIS, DNS records and SSL certificate details for domains |
 | CVE matching | Built-in table matched on product **and version range**; unknown versions are never flagged |
 | Risk engine | Transparent 0–100 score and LOW / MEDIUM / HIGH / CRITICAL level (see [Risk model](#risk-model)) |
-| Recommendations | Fix advice for each matched CVE |
-| Reports | PDF per scan via `GET /scanner/report/{id}`, owner only (no download button in the dashboard yet) |
+| Recommendations | Fix advice for each matched CVE and for risky open services (Telnet, FTP, RDP, SMB, exposed databases, ...), sorted by urgency |
+| Reports | 8-section PDF summary report: executive summary in plain language, score breakdown, open ports and services, vulnerabilities, DNS / WHOIS / TLS details, prioritized recommendations, conclusion, scope and limitations. Download it from the **Download PDF report** button in the scan result or the **PDF** button in Recent Scans (owner only). It is rebuilt from the saved results on every download. |
 | Background scans | Celery + Redis worker with live stage and percentage progress |
 | Dashboard | Total scans, risk counts, scan history with delete |
 | **Security Assistant** | Floating chat popup on the dashboard. Open-ended, conversational answers that stream in as they are written, with Markdown formatting (lists, tables, code blocks), a Stop button and follow-up memory. Relevant notes from a 17-document knowledge base are attached and cited as sources. Needs an Anthropic API key for chat; without one it shows knowledge-base passages. |
-| Tests | 96 backend tests, fully offline; CI on every push |
+| Tests | 118 backend tests, fully offline; CI on every push |
 
 The scanner itself is rule-based. The AI feature is the Security Assistant.
 
@@ -173,7 +173,7 @@ All routes except register, login and health need `Authorization: Bearer <token>
 |---|---|
 | `POST /auth/register`, `POST /auth/login`, `GET /auth/me` | Accounts (login is an OAuth2 form: email in the `username` field) |
 | `POST /scanner/start` | Queue a scan: `{"target": "...", "authorized": true}` |
-| `GET /scanner/status/{id}` · `/result/{id}` · `/report/{id}` | Progress, full findings, PDF |
+| `GET /scanner/status/{id}` · `/result/{id}` · `/report/{id}` | Progress, full findings, PDF summary report (404 until the scan is completed) |
 | `GET /history/` · `DELETE /history/{id}` | Your scans |
 | `GET /dashboard/stats` · `GET /profile/` | Counts and account info |
 | `POST /recon/scan` · `POST /risk/` | Quick recon and risk calculation |
@@ -214,7 +214,7 @@ The score starts at 0 and is capped at 100. Only open ports count.
 ## Testing
 
 ```bash
-cd backend && python -m pytest        # 96 tests, offline (in-memory SQLite, no Redis/Nmap/API key)
+cd backend && python -m pytest        # 118 tests, offline (in-memory SQLite, no Redis/Nmap/API key)
 cd frontend && npm run build          # also type-checks
 ```
 
@@ -227,6 +227,7 @@ CI (`.github/workflows/ci.yml`) runs both on every push and pull request.
 | `RuntimeError: SECRET_KEY is missing, too short...` | Put a 32+ character random key in `backend/.env` (command above). |
 | `Scan failed: PortScannerError` | Nmap is not installed or not on `PATH`. Install it and restart the worker. |
 | `Scan queue unavailable` (503) | Redis is not running or `CELERY_BROKER_URL` is wrong. |
+| The PDF button is missing, or the PDF says "not ready" | Buttons appear only for **completed** scans; wait for the scan to finish. Failed scans have no report. |
 | Scan stays `queued` | Start the Celery worker (Windows: add `-P solo`). |
 | `column ... does not exist` after upgrading | Tables changed shape: `python -m scripts.reset_db --yes` (deletes data). |
 | `This address range cannot be scanned` / private target rejected | Intended. For a lab network set `ALLOW_PRIVATE_TARGETS=true`. |
@@ -237,6 +238,7 @@ CI (`.github/workflows/ci.yml`) runs both on every push and pull request.
 ## Limitations
 
 - CVE matching is **version-based** against a deliberately small built-in table (4 CVEs: Apache, OpenSSH, nginx, vsftpd). Distributions often backport fixes without changing the version, so results are *potential* matches, and a clean result does not prove a host is safe.
+- The risk score only counts a few risky ports (21, 22, 23, 80, 443) and known CVEs, so an exposed database can score low. The report says so when a High or Critical recommendation exists, but the scoring model itself is simple.
 - Only the default top 1000 TCP ports are scanned; UDP and other ports are not.
 - The authorization checkbox is an attestation, not proof of ownership.
 - The assistant's knowledge-base search is keyword-based, so a question phrased with very different words may not attach any notes (the model still answers from its own knowledge).

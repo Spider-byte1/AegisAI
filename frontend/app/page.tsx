@@ -2,13 +2,15 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { apiFetch, clearToken, errorMessage, getToken } from "@/lib/api";
+import { apiFetch, clearToken, downloadReport, errorMessage, getToken } from "@/lib/api";
 import AssistantWidget from "@/components/AssistantWidget";
+import SOCTerminal from "@/components/SOCTerminal";
 
 
 interface ScanResult {
 
   scan:{
+    id:number;
     target:string;
     status:string;
     risk:{
@@ -43,6 +45,7 @@ interface Scan {
 export default function Home(){
 const router = useRouter();
 const [authorized,setAuthorized] = useState(false);
+const [logs,setLogs] = useState<string[]>([]);
 
 
 const [stats,setStats] = useState({
@@ -61,6 +64,7 @@ const [scans,setScans] = useState<Scan[]>([]);
 
 const [result,setResult] =
 useState<ScanResult|null>(null);
+const [reportError,setReportError] = useState("");
 
 
 const [loading,setLoading] =
@@ -138,6 +142,16 @@ console.log(err);
 
 
 };
+const handleDownload = async(id:number,target:string)=>{
+setReportError("");
+try{
+await downloadReport(id,target);
+}
+catch(error){
+setReportError(error instanceof Error ? error.message : "Could not download the report");
+}
+};
+
 const deleteScan = async(id:number)=>{
 
   try{
@@ -595,7 +609,7 @@ width:`${progress}%`
 
 )}
 
-
+<SOCTerminal logs={logs}/>
 
 
 
@@ -663,6 +677,14 @@ Risk
 
 
 </div>
+{result.scan.status?.toLowerCase()==="completed" && (
+<button
+onClick={()=>handleDownload(result.scan.id,result.scan.target)}
+className="mt-6 bg-cyan-600 hover:bg-cyan-700 px-5 py-2 rounded-lg"
+>
+Download PDF report
+</button>
+)}
 
 
 </section>
@@ -673,6 +695,12 @@ Risk
 
 
 
+
+{reportError && (
+<p role="alert" className="mt-6 text-red-400">
+{reportError}
+</p>
+)}
 
 {/* History */}
 
@@ -803,6 +831,14 @@ Today
 </td>
 <td>
 
+{scan.status?.toLowerCase()==="completed" && (
+<button
+onClick={()=>handleDownload(scan.id,scan.target)}
+className="bg-cyan-700 hover:bg-cyan-600 px-3 py-1 rounded mr-2"
+>
+PDF
+</button>
+)}
 <button
 
 onClick={()=>deleteScan(scan.id)}

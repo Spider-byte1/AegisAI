@@ -1,4 +1,5 @@
 import json
+from datetime import datetime, timezone
 from typing import Callable, Optional
 
 from app.core.logger import logger
@@ -6,7 +7,7 @@ from app.scanners.validator import assert_scannable
 from app.services.asset_service import collect_asset_info
 from app.services.pdf_service import generate_pdf
 from app.services.report_service import generate_report
-from app.services.risk_engine import calculate_risk
+from app.services.risk_engine import calculate_risk, risk_factors
 from app.services.scan_engine import execute_scan
 from app.services.vulnerability_service import analyze_services
 
@@ -45,7 +46,9 @@ def start_scan(target: str, scan_id: int, on_progress: Optional[ProgressCallback
     details = {
         "target": scan_target.host,
         "status": "completed",
+        "scanned_at": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC"),
         "risk": risk,
+        "risk_factors": risk_factors(ports, vulnerabilities),
         **assets,
         "ports": ports,
         "services": services,

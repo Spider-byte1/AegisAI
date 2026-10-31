@@ -1,5 +1,3 @@
-from pathlib import Path
-
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
@@ -13,6 +11,8 @@ from app.models.scan import ACTIVE_STATUSES, Scan
 from app.models.user import User
 from app.scanners.validator import assert_scannable
 from app.schemas.scanner import ScanRequest
+from app.services.pdf_service import generate_pdf
+from app.services.report_service import generate_report
 from app.worker.tasks import run_scan_task
 
 router = APIRouter(prefix="/scanner", tags=["Scanner"])
@@ -98,10 +98,21 @@ def get_scan_result(scan_id: int, db: Session = Depends(get_db), user: User = De
 @router.get("/report/{scan_id}")
 def download_report(scan_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     scan = _get_owned_scan(db, scan_id, user)
-    if not scan.report_path or not Path(scan.report_path).is_file():
-        raise HTTPException(status_code=404, detail="Report not available")
-    return FileResponse(
-        scan.report_path,
-        media_type="application/pdf",
-        filename=f"aegisai_scan_{scan.id}.pdf",
-    )
+    if scan.status != "completed" or not scan.result:
+        raise HTTPException(status_code=404, detail="The report is not ready yet")
+
+    # Rebuilt from the saved results each time, so older scans get the current layout and a
+    # PDF that was deleted from disk (or lost with a container volume) is simply recreated.
+    details = dict(scan.result)
+    if scan.created_at and "scanned_at" not in details:
+        details["scanned_at"] = scan.created_at.strftime("%Y-%m-%d %H:%M:%S UTC")
+    try:
+        path = generate_pdf(generate_report(details), scan.id)
+    except Exception:
+        logger.exception(f"Could not build report for scan {scan.id}")
+        raise HTTPException(status_code=500, detail="The report could not be generated")
+
+    if scan.report_path != path:
+        scan.report_path = path
+        db.commit()
+    return FileResponse(path, media_type="application/pdf", filename=f"aegisai_scan_{scan.id}.pdf")

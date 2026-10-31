@@ -21,7 +21,7 @@ Then, with your virtualenv active:
     pip install -r requirements-dev.txt
     cd backend
     python -m scripts.reset_db --yes        # tables changed shape; this deletes dev data
-    python -m pytest                        # 96 tests should pass
+    python -m pytest                        # 118 tests should pass
 
 ## 5. Run
     uvicorn app.main:app --reload                                  (backend/)

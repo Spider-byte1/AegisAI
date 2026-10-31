@@ -78,3 +78,74 @@ def test_worker_revalidates_target(client, auth, queued):
 
     status = client.get(f"/scanner/status/{sid}", headers=auth).json()
     assert status["status"] == "failed"
+
+
+# ------------------------------------------------------------------ report download
+def _completed_scan(client, auth, queued, monkeypatch, tmp_path):
+    _patch_network(monkeypatch, tmp_path)
+    scan_id = client.post("/scanner/start", json={"target": "example.com", "authorized": True}, headers=auth).json()["scan_id"]
+    run_scan_task(scan_id, "example.com")
+    return scan_id
+
+
+def _text(content: bytes) -> str:
+    import io
+    from pypdf import PdfReader
+    return "\n".join(p.extract_text() for p in PdfReader(io.BytesIO(content)).pages)
+
+
+def test_report_is_the_eight_section_summary_with_the_scan_date(client, auth, queued, monkeypatch, tmp_path):
+    scan_id = _completed_scan(client, auth, queued, monkeypatch, tmp_path)
+    r = client.get(f"/scanner/report/{scan_id}", headers=auth)
+    assert r.status_code == 200 and r.headers["content-type"] == "application/pdf"
+    assert 'filename="aegisai_scan_' in r.headers["content-disposition"]
+    text = _text(r.content)
+    assert "1. Executive summary" in text and "8. Scope and limitations" in text
+    assert "CVE-2021-41773" in text and "Scanned" in text and "UTC" in text
+
+
+def test_a_deleted_pdf_is_recreated_on_download(client, auth, queued, monkeypatch, tmp_path):
+    scan_id = _completed_scan(client, auth, queued, monkeypatch, tmp_path)
+    for f in tmp_path.glob("*.pdf"):
+        f.unlink()
+    assert not list(tmp_path.glob("*.pdf"))
+    r = client.get(f"/scanner/report/{scan_id}", headers=auth)
+    assert r.status_code == 200 and r.content.startswith(b"%PDF")
+    assert [f.name for f in tmp_path.glob("*.pdf")] == [f"scan_{scan_id}.pdf"]
+
+
+def test_scans_saved_by_older_versions_still_produce_the_new_report(client, auth, queued, monkeypatch, tmp_path):
+    """Results stored before risk_factors / scanned_at existed must not break the download."""
+    scan_id = _completed_scan(client, auth, queued, monkeypatch, tmp_path)
+    db = SessionLocal()
+    scan = db.get(Scan, scan_id)
+    old = dict(scan.result)
+    for key in ("risk_factors", "scanned_at"):
+        old.pop(key, None)
+    scan.result = old
+    db.commit(); db.close()
+
+    r = client.get(f"/scanner/report/{scan_id}", headers=auth)
+    assert r.status_code == 200
+    text = _text(r.content)
+    assert "1. Executive summary" in text and "6. Recommendations" in text
+    # no stored breakdown: it is rebuilt from the saved ports and CVEs, so the report never claims "score 0"
+    assert "Total (capped at 100)" in text and "Open port HTTP (80)" in text
+    assert "CVE-2021-41773 (High)" in text and "No risk factors were identified" not in text
+    assert "UTC" in text  # scan date comes from the database record when the result lacks it
+
+
+def test_report_is_not_available_until_the_scan_completes(client, auth, queued):
+    scan_id = client.post("/scanner/start", json={"target": "example.com", "authorized": True}, headers=auth).json()["scan_id"]
+    r = client.get(f"/scanner/report/{scan_id}", headers=auth)
+    assert r.status_code == 404 and "not ready" in r.json()["detail"]
+
+
+def test_report_failure_returns_a_generic_error(client, auth, queued, monkeypatch, tmp_path):
+    scan_id = _completed_scan(client, auth, queued, monkeypatch, tmp_path)
+
+    def boom(*a, **k):
+        raise RuntimeError("disk full /secret/path")
+    monkeypatch.setattr("app.api.scanner.generate_pdf", boom)
+    r = client.get(f"/scanner/report/{scan_id}", headers=auth)
+    assert r.status_code == 500 and "secret" not in r.text and "RuntimeError" not in r.text
